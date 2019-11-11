@@ -1,7 +1,9 @@
 import re
-import numpy as np
+import sys
 import time
+import numpy as np
 from pyaudio import PyAudio, paFloat32
+from collections import deque
 
 
 class MorseCodeTranslator:
@@ -128,7 +130,7 @@ class MorseCodeTranslator:
         return sample, sample_rate
 
     @staticmethod
-    def _play_morse_code_audio(samples, sample_rate):
+    def _play_morse_code_audio(samples, sample_rate, ):
         pa = PyAudio()
         stream = pa.open(rate=sample_rate, channels=2,
                          format=paFloat32, output=True)
@@ -140,21 +142,48 @@ class MorseCodeTranslator:
         pa.terminate()
         print("Played in {} seconds.".format(round(stop - start, 2)))
 
-    def read_morse_audio(self):
+    def read_morse_audio(self, sample_rate=44100):
         # TODO:
         # Wait for first tone
         # Read characters
-        # Determine length of silence between a new char
+        # Determine length tones (short => '.', long => '-')
         # Determine length of silence for space
         # Convert dit to dot, dah to dash
         # Determine wpm speed
         # ? Optional: ML to get better accuracy in determining gap lengths between characters and start of new word.
+        chunk = 1024
+        pa = PyAudio()
+        stream = pa.open(rate=sample_rate, channels=2, 
+                         format=paFloat32, input=True)
+        stream.read(num_frames=chunk)
         pass
 
+    def _get_first_tone(self, stream):
+        threshold = 2500
+        deque()
+        pass
 
-m = MorseCodeTranslator(text="Hello there")
-code = m.text_to_morse()
-print(code)
-m.text_to_morse_audio(tone_freq=440.0)
-m = MorseCodeTranslator(code=code)
-print(m.morse_to_text())
+    def _read_audio_stream(self, stream):
+        pass
+
+    def _determine_character(self):
+        pass
+
+    def _determine_space(self):
+        pass
+
+    def _determine_speed(self):
+        pass
+
+    def _print_single_char(self, char):
+        sys.stdout.write(char)
+        sys.stdout.flush()
+
+
+if __name__ == "__main__":
+    m = MorseCodeTranslator(text="Hello there")
+    code = m.text_to_morse()
+    print(code)
+    m.text_to_morse_audio(tone_freq=440.0)
+    m = MorseCodeTranslator(code=code)
+    print(m.morse_to_text())
