@@ -112,7 +112,7 @@ class MorseCodeTranslator:
         sample = (np.zeros(int(sample_rate*duration))).astype(np.float32)
         return sample
 
-    def create_sample(self, morse_code, speed=20, farnsworth_speed=20, tone_freq=440.0, sample_rate=44100, **kwargs):
+    def create_sample(self, morse_code, speed=20, farnsworth_speed=20, tone_freq=440.0, sample_rate=44100):
         time_unit = 60/(speed*25)
         f_time_unit = 60/(farnsworth_speed*25)
         char_time_units = {
@@ -130,7 +130,7 @@ class MorseCodeTranslator:
         return sample, sample_rate
 
     @staticmethod
-    def _play_morse_code_audio(samples, sample_rate, ):
+    def _play_morse_code_audio(samples, sample_rate):
         pa = PyAudio()
         stream = pa.open(rate=sample_rate, channels=2,
                          format=paFloat32, output=True)
@@ -148,7 +148,6 @@ class MorseCodeTranslator:
         # Read characters
         # Determine length tones (short => '.', long => '-')
         # Determine length of silence for space
-        # Convert dit to dot, dah to dash
         # Determine wpm speed
         # ? Optional: ML to get better accuracy in determining gap lengths between characters and start of new word.
         chunk = 1024
