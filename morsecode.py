@@ -2,7 +2,8 @@ import re
 import sys
 import time
 import numpy as np
-from pyaudio import PyAudio, paFloat32
+import socket
+from pyaudio import PyAudio, paFloat32, paContinue
 from collections import deque
 
 
@@ -97,9 +98,13 @@ class MorseCodeTranslator:
             coded_msg.append(self.char_to_morse(char))
         return ' '.join(coded_msg)
 
-    def text_to_morse_audio(self, **kwargs):
-        sample, sample_rate = self.create_sample(self.text_to_morse(), **kwargs)   
-        self._play_morse_code_audio(sample, sample_rate)
+    def text_to_morse_audio(self, network_stream=False, **kwargs):
+        sample, sample_rate = self.create_sample(self.text_to_morse(), **kwargs)
+        if network_stream:
+            stream = NetworkAudioServer()
+            stream.start(sample.tobytes())
+        else:
+            self._play_morse_code_audio(sample, sample_rate)
 
     @staticmethod
     def _create_tone(duration, tone_freq, sample_rate):
@@ -142,47 +147,106 @@ class MorseCodeTranslator:
         pa.terminate()
         print("Played in {} seconds.".format(round(stop - start, 2)))
 
-    def read_morse_audio(self, sample_rate=44100):
-        # TODO:
-        # Wait for first tone
-        # Read characters
-        # Determine length tones (short => '.', long => '-')
-        # Determine length of silence for space
-        # Determine wpm speed
+    def read_morse_audio(self, sample_rate=44100, network_stream=False):
         # ? Optional: ML to get better accuracy in determining gap lengths between characters and start of new word.
-        chunk = 1024
+        if network_stream:
+            self._get_network_stream(sample_rate)
+        else:
+            pass
+
+    def _get_network_stream(self, sample_rate=44100):
+        net_stream = NetworkAudioClient()
+        conn = net_stream.connect()
         pa = PyAudio()
-        stream = pa.open(rate=sample_rate, channels=2, 
-                         format=paFloat32, input=True)
-        stream.read(num_frames=chunk)
-        pass
+        stream = pa.open(rate=sample_rate, channels=2,
+                         format=paFloat32, output=True,
+                         frames_per_buffer=1024)
+        self._read_audio_data(conn, stream)
 
-    def _get_first_tone(self, stream):
-        threshold = 2500
-        deque()
-        pass
+    def _is_silent(self, data, threshold=500):
+        return max(data) < threshold 
 
-    def _read_audio_stream(self, stream):
-        pass
+    def _read_audio_data(self, connect_obj, stream_obj):
+        start = time.time()
+        prev_audio = False
+        while True:
+            string = ''
+            data = connect_obj.recv(1024)
+            if not data:
+                return
+            stream_obj.write(data)
+            arr = np.frombuffer(data, dtype=np.float32)
+            
+            if not self._is_silent(arr) and not prev_audio:
+                stop = time.time()
+                t = stop - start
+                start = stop
+                string += self._determine_symbol(t)
+            elif self._is_silent(arr) and prev_audio:
+                stop = time.time()
+                t = stop - start
+                start = stop
+                space = self._determine_space(time)
+                if space == ' ':
+                    print(self._determine_character(string), end='')
+                elif space == self.SPACE_SYMBOL:
+                    print(self.SPACE_SYMBOL, ' ')
 
-    def _determine_character(self):
-        pass
+    def _determine_symbol(self, time):
+        if time < 0.25:
+            return '.'
+        else:
+            return '-'     
 
-    def _determine_space(self):
-        pass
+    def _determine_space(self, time):
+        if time < 0.25:
+            return ''
+        elif time >= 0.25 and time < 0.7:
+            return ' '
+        else:
+            return self.SPACE_SYMBOL
 
+    def _determine_character(self, morse_code):
+        keys = self.SYMBOLS.keys()
+        vals = self.SYMBOLS.vals()
+        idx = vals.index(morse_code)
+        return keys[idx]
+    
+    # TODO: Determine wpm speed
     def _determine_speed(self):
         pass
 
-    def _print_single_char(self, char):
-        sys.stdout.write(char)
-        sys.stdout.flush()
 
+class NetworkAudioServer:
+    def __init__(self, ip='127.0.0.1', port=12345):
+        self.server_addr = (ip, port)
+        self.sock = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM)
+
+    def start(self, audio_data, buffer_size=1024, send_to_ip='127.0.0.1', send_to_port=12345):
+        addr = (send_to_ip, send_to_port)
+        self.sock.bind(self.server_addr)
+        self.sock.listen(1)
+        pa = PyAudio()
+        stream = pa.open()
+        self.sock.close()
+
+    def send_chunk(self, in_data, frame_count, time_info, status_flags):
+        self.sock.sendto()
+        pass
+
+class NetworkAudioClient:
+    def __init__(self, server_ip='127.0.0.1', server_port=12345):
+        self.address = (server_ip, server_port)
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+    def connect(self, buffer_size=1024):
+        return self.sock.connect(self.address)
+          
 
 if __name__ == "__main__":
-    m = MorseCodeTranslator(text="Hello there")
+    m = MorseCodeTranslator(text="CQ CQ CQ KN6FQY")
     code = m.text_to_morse()
     print(code)
-    m.text_to_morse_audio(tone_freq=440.0)
+    m.text_to_morse_audio(network_stream=False, tone_freq=440.0)
     m = MorseCodeTranslator(code=code)
     print(m.morse_to_text())
